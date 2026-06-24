@@ -72,11 +72,11 @@ def tabelle_bauen(
             zeilen.append({
                 "Vorher": " ".join(vorher),
                 "Nächstes Wort": naechstes,
-                "Häufigkeit": anzahl
+                "absolute Häufigkeit": anzahl
             })
     df = pd.DataFrame(zeilen)
     if not df.empty:
-        df = df.sort_values(["Vorher", "Häufigkeit"], ascending=[True, False]).reset_index(drop=True)
+        df = df.sort_values(["Vorher", "absolute Häufigkeit"], ascending=[True, False]).reset_index(drop=True)
     return df
 
 
@@ -196,15 +196,69 @@ def satz_erzeugen(
     return " ".join(s)
 
 
-def blau_gradient(col, vmax):
-    """Färbt eine Spalte mit einem Blau-Verlauf ohne matplotlib."""
-    def farbe(val):
-        ratio = val / vmax if vmax > 0 else 0
-        r = int(255 - ratio * (255 - 8))
-        g = int(255 - ratio * (255 - 81))
-        b = int(255 - ratio * (255 - 148))
-        return f"background-color: #{r:02x}{g:02x}{b:02x}"
-    return col.apply(farbe)
+# -----------------------------
+# Farb-Einstellungen für Häufigkeiten
+# -----------------------------
+# Diese Werte kannst du leicht anpassen:
+# 1              -> rot
+# 2 bis 5        -> gelb
+# ab 6           -> grün
+GRENZE_GELB_AB = 3
+GRENZE_GRUEN_AB = 6
+
+ROT_HELL = "#ffd6d6"
+ROT_DUNKEL = "#ffa6a6"
+
+GELB_HELL = "#fff6bf"
+GELB_DUNKEL = "#ffe066"
+
+GRUEN_HELL = "#d8f3dc"
+GRUEN_DUNKEL = "#74c69d"
+
+
+def farbe_mischen(farbe1: str, farbe2: str, ratio: float) -> str:
+    """Mischt zwei Hex-Farben. ratio: 0 = farbe1, 1 = farbe2."""
+    ratio = max(0, min(1, ratio))
+
+    farbe1 = farbe1.lstrip("#")
+    farbe2 = farbe2.lstrip("#")
+
+    r1, g1, b1 = int(farbe1[0:2], 16), int(farbe1[2:4], 16), int(farbe1[4:6], 16)
+    r2, g2, b2 = int(farbe2[0:2], 16), int(farbe2[2:4], 16), int(farbe2[4:6], 16)
+
+    r = int(r1 + (r2 - r1) * ratio)
+    g = int(g1 + (g2 - g1) * ratio)
+    b = int(b1 + (b2 - b1) * ratio)
+
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def ampel_farbe(val):
+    """Farbe für eine einzelne Häufigkeit. Schrift bleibt schwarz und gut lesbar."""
+    try:
+        val = float(val)
+    except (TypeError, ValueError):
+        return "color: black"
+
+    if val < GRENZE_GELB_AB:
+        # 1 -> rot
+        bg = ROT_DUNKEL
+
+    elif val < GRENZE_GRUEN_AB:
+        # 2 bis 5 -> gelbe Nuancen
+        if GRENZE_GRUEN_AB > GRENZE_GELB_AB:
+            ratio = (val - GRENZE_GELB_AB) / (GRENZE_GRUEN_AB - GRENZE_GELB_AB)
+        else:
+            ratio = 0
+        bg = farbe_mischen(GELB_HELL, GELB_DUNKEL, ratio)
+
+    else:
+        # ab 6 -> grün
+        # Bei sehr hohen Werten wird es etwas kräftiger, aber nicht zu dunkel.
+        ratio = min((val - GRENZE_GRUEN_AB) / 10, 1)
+        bg = farbe_mischen(GRUEN_HELL, GRUEN_DUNKEL, ratio)
+
+    return f"background-color: {bg}; color: black; font-weight: 600"
 
 
 # -----------------------------
@@ -322,8 +376,13 @@ with colA:
                         "Versuche andere Wörter oder mehr Trainings-Text."
                     )
 
-        vmax = int(df["Häufigkeit"].max()) if not df.empty else 1
-        df_styled = df_anzeige.style.apply(blau_gradient, vmax=vmax, subset=["Häufigkeit"])
+        # Ampel-Färbung nur für die Spalte "Häufigkeit".
+        # .map ist neu, .applymap ist für ältere pandas-Versionen.
+        try:
+            df_styled = df_anzeige.style.map(ampel_farbe, subset=["absolute Häufigkeit"])
+        except AttributeError:
+            df_styled = df_anzeige.style.applymap(ampel_farbe, subset=["absolute Häufigkeit"])
+
         st.dataframe(df_styled, use_container_width=True, height=520)
 
         moeglichkeiten = df.groupby("Vorher")["Nächstes Wort"].nunique()
