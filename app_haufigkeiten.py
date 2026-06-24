@@ -196,6 +196,17 @@ def satz_erzeugen(
     return " ".join(s)
 
 
+def blau_gradient(col, vmax):
+    """Färbt eine Spalte mit einem Blau-Verlauf ohne matplotlib."""
+    def farbe(val):
+        ratio = val / vmax if vmax > 0 else 0
+        r = int(255 - ratio * (255 - 8))
+        g = int(255 - ratio * (255 - 81))
+        b = int(255 - ratio * (255 - 148))
+        return f"background-color: #{r:02x}{g:02x}{b:02x}"
+    return col.apply(farbe)
+
+
 # -----------------------------
 # Streamlit UI
 # -----------------------------
@@ -311,12 +322,8 @@ with colA:
                         "Versuche andere Wörter oder mehr Trainings-Text."
                     )
 
-        df_styled = df_anzeige.style.background_gradient(
-            subset=["Häufigkeit"],
-            cmap="Blues",
-            vmin=0,
-            vmax=df["Häufigkeit"].max()
-        )
+        vmax = int(df["Häufigkeit"].max()) if not df.empty else 1
+        df_styled = df_anzeige.style.apply(blau_gradient, vmax=vmax, subset=["Häufigkeit"])
         st.dataframe(df_styled, use_container_width=True, height=520)
 
         moeglichkeiten = df.groupby("Vorher")["Nächstes Wort"].nunique()
