@@ -72,7 +72,7 @@ def tabelle_bauen(
             zeilen.append({
                 "Vorher": " ".join(vorher),
                 "Nächstes Wort": naechstes,
-                "Häufigkeit": round(anzahl / total * 100, 1) if total else 0.0
+                "Häufigkeit": anzahl
             })
     df = pd.DataFrame(zeilen)
     if not df.empty:
@@ -210,14 +210,14 @@ if "generated_sentences" not in st.session_state:
 
 
 st.info(
-    "Hier kannst du dein eigenes kleines Sprachmodell aufbauen. "
-    "Es analysiert deinen Text und bestimmt für dich die Übergangstabelle. "
-    "Mit den Einstellungen kannst du ausprobieren, wie dein Modell arbeitet."
+    "Das Programm schaut sich deinen Text an und merkt sich: Welches Wort kommt nach welchem Wort? "
+    "Das siehst du in der Tabelle. "
+    "Mit dem Knopf kannst du dann neue Sätze erzeugen lassen."
 )
 
 st.subheader("1. Trainingstext")
 text = st.text_area(
-    "Du kannst den Text beliebig verändern. Ergänze noch die Liedtexte von anderen Liedern. Wichtig ist, dass ein . am Satzende steht.",
+    "Du kannst den Text verändern oder ergänzen. Wichtig: Jeder Satz muss mit einem Punkt enden.",
     value=(
         "Ich glaub, ich will heut nicht mehr geh'n. Ich hab dich viel zu kurz geseh'n. Und überhaupt, draußen ist's kalt, zu kalt. Und an dein'n Fensterecken blüht das Eis. Ich will, dass du gar nichts machst, gar nichts machst. Will mit dir den ganzen Tag, sag alles ab. In meinem Bett ist so viel Platz und mir ist kalt. Doch auf deinem Screen ist Portugal. Denn du willst viel vom Leben, glaub an dich. Ey, deine Ziele sind zu ambitioniert für mich. Du inspirierst, doch bitte sei heute faul für mich. All meine Freunde unterwegs, suchen, was wir schon sind. Ich glaub, ich will heut nicht mehr geh'n. Ich hab dich viel zu kurz geseh'n. Und überhaupt, draußen ist's kalt. Und an dein'n Fensterecken blüht das Eis. Ich glaub, ich will nie mehr nach Haus. Weil da, wo du bist, ist das auch . Komm, schließ uns ein, wir sind allein. Frag mich, ob das Gefühl für immer bleibt. Palo Santo, Herz in Brand, mach die teuren Kerzen an. Frisch geduscht, Bossa nova, verlier'n uns im Viervierteltakt. Ich les dir von den Lippen ab, weil du nur gute Seiten hast. Sitz auf deiner Fensterbank und strahl heut alle Sterne an. Ich glaub an mich, glaub an dich. Eigentlich nur wir, ansonsten brauch ich nichts, brauch nur dich. Mach keine Pläne, bitte sei heute faul für mich. All meine Leute unterwegs, suchen, was wir schon sind. Ich glaub, ich will heut nicht mehr geh'n. Ich hab dich viel zu kurz geseh'n. Und überhaupt, draußen ist's kalt, zu kalt. Und an dein'n Fensterecken blüht das Eis. Ich glaub, ich will heut nicht mehr geh'n. Ich hab dich viel zu kurz geseh'n. Und überhaupt, draußen ist's kalt. Und an dein'n Fensterecken blüht das Eis. Ich glaub, ich will nie mehr nach Haus. Weil da, wo du bist, ist das auch. Komm, schließ uns ein, wir sind allein. Frag mich, ob das Gefühl für immer bleibt. Ich glaub, ich will heut nicht mehr geh'n."
         "Ich will, dass ihr mir vertraut. Ich will, dass ihr mir glaubt. Ich will eure Blicke spüren. Jeden Herzschlag kontrollieren. Ich will eure Stimmen hören. Ich will die Ruhe stören. Ich will, dass ihr mich gut seht. Ich will, dass ihr mich versteht. Ich will eure Fantasie. Ich will eure Energie. Ich will eure Hände seh'n. Könnt ihr mich hören?  Könnt ihr mich seh'n? Könnt ihr mich fühlen? Ich versteh' euch nicht. Könnt ihr uns hören? Könnt ihr uns seh'n? Könnt ihr uns fühlen? Wir versteh'n euch nicht."
@@ -235,6 +235,7 @@ with st.sidebar:
     zufall = st.slider(
         "Zufall",
         0, 100, 20, 1,
+        format="%d %%",
         help="0 = immer das häufigste Wort · 100 = ganz zufällig"
     )
 
@@ -253,7 +254,7 @@ with st.sidebar:
     )
 
     max_woerter = st.number_input(
-        "Maximale Wörter pro Satz",
+        "Maximale Satzlänge (Wörter)",
         min_value=3, max_value=60, value=25, step=1,
         help="Sicherheitsgrenze, falls kein Punkt gewählt wird."
     )
@@ -282,7 +283,7 @@ with colA:
         st.warning("Bitte mehr Text eingeben.")
     else:
         suche_vorher = st.text_input(
-            "Suche (nur „Vorher“)",
+            “Wort suchen”,
             placeholder=placeholder,
         )
 
@@ -310,21 +311,19 @@ with colA:
                         "Versuche andere Wörter oder mehr Trainings-Text."
                     )
 
-        st.dataframe(
-            df_anzeige,
-            use_container_width=True,
-            height=520,
-            column_config={
-                "Häufigkeit": st.column_config.NumberColumn("Häufigkeit", format="%.0f %%")
-            }
+        df_styled = df_anzeige.style.background_gradient(
+            subset=["Häufigkeit"],
+            cmap="Blues",
+            vmin=0,
+            vmax=df["Häufigkeit"].max()
         )
+        st.dataframe(df_styled, use_container_width=True, height=520)
 
         moeglichkeiten = df.groupby("Vorher")["Nächstes Wort"].nunique()
         nur_eine = int((moeglichkeiten == 1).sum())
         gesamt_vorher = int(len(moeglichkeiten))
         st.caption(
-            f"Info: Bei {nur_eine} von {gesamt_vorher} Wörtern gibt es nur **eine** Möglichkeit. "
-            "Dann ändert der Zufall-Regler nichts."
+            f"Bei {nur_eine} von {gesamt_vorher} Wörtern gibt es nur eine Möglichkeit – dort ändert der Zufall nichts."
         )
 
 with colB:
