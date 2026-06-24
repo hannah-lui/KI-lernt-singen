@@ -283,7 +283,7 @@ with colA:
         st.warning("Bitte mehr Text eingeben.")
     else:
         suche_vorher = st.text_input(
-            “Wort suchen”,
+            "Wort suchen",
             placeholder=placeholder,
         )
 
